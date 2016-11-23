@@ -1,0 +1,124 @@
+<?php
+class Login_model extends CI_Model {
+	
+	public $Table='admin_user';
+	public $SesTable='session';
+	public $Error;
+
+        public function __construct()
+        {
+			parent::__construct();
+			$this->LoginKey=$this->config->item('LoginKey');
+                $this->load->database();
+				#$this->load->library('session');
+                //$this->load->model('class_model');
+                $this->load->helper('url_helper');
+				$this->load->library('session');
+        }
+		
+	public function IsLogin(){
+		$LoginData=$this->session->userdata('LoginData');
+		
+		$this->db->where('user_id',$LoginData['user_id'] );
+		$this->db->where('user_status', '1');
+        $this->UserObj = $this->db->get($this->Table)->row();
+		if((empty($this->UserObj->user_id)) || ($LoginData['login_key']!=$this->LoginKey) || empty($LoginData['login_key']) ){
+			return false; 
+		}
+		
+		 $this->db->where('ses_id', $LoginData['ses_id']);
+		 $this->SessionObj= $this->db->get($this->SesTable)->row();
+		 if(empty($this->SessionObj->ses_id)){
+			return false; 
+		 }
+		 $this->UserObj->user_type=$LoginData['user_type'];
+		
+		return true;
+	}
+	public function Logout($Redirect=true){
+		$user_data=$this->session->all_userdata(); /*Get All User Data*/
+		foreach ($user_data as $key => $value) {
+            $this->session->unset_userdata($key);
+    	}
+		if($Redirect){
+			$AdminFolder=$this->config->item('AdminFolder');
+			redirect($AdminFolder.'Login');
+		}
+	}
+
+	public function Check(){
+		$CheckLogin=$this->IsLogin();
+		if(empty($CheckLogin)){
+			$this->Logout();
+		}
+	}
+	
+	public function Info($Type=NULL){
+		if(empty($this->UserObj) || empty($this->SessionObj)){
+			$this->Check();
+		}
+		
+		$Data = (object) array_merge((array) $this->UserObj, (array) $this->SessionObj);
+		
+		if($Type=='Name'){
+			return $Data->user_name;
+		}
+		if($Type=='ID'){
+			return $Data->user_id;
+		}
+		if($Type=='Type'){
+			return $Data->user_type;
+		}
+		if($Type=='SesID'){
+			return $Data->ses_id;
+		}
+		if($Type=='SesName'){
+			return $Data->ses_name;
+		}
+		return $Data;
+	}
+	
+	public function AccessType($type){
+	}
+	
+	public function Login($User,$Pass,$Type,$Session)
+	{
+		
+		/***********************Check Session****************************/
+		 $this->db->where('ses_id', $Session);
+		 $query = $this->db->get($this->SesTable)->row();
+		 if(empty($query->ses_id)){
+			$this->Error='Wrong Session'; 
+			return false; 
+		 }
+		/*********************Check User**************************/
+		
+		if($Type==1){
+		}
+        // Prep the query
+        $this->db->where('user_name', $User);
+        $this->db->where('user_pass', $Pass);
+		$this->db->where('user_status', '1');
+        
+        // Run the query
+        $OB = $this->db->get($this->Table)->row();
+		
+		if(empty($OB->user_id)){
+			$this->Error='Wrong Inputs'; 
+			return false; 
+		}
+
+		/***************************Set User Data*****************************/
+            $data = array('LoginData'=>array(
+					'ses_id' => $query->ses_id,
+					'login_key' => $this->LoginKey,
+                    'user_id' => $OB->user_id,
+					'user_type' => $Type,
+                    ));
+				
+            $this->session->set_userdata($data);
+			
+          return true;
+
+	}
+	}
